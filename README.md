@@ -43,8 +43,8 @@
     <h1>G25 Monte Carlo Calculator</h1>
 
     <h2>Enter Your G25 Coordinates</h2>
-    <p>Paste your 25 G25 values, separated by commas:</p>
-    <textarea id="g25Input" rows="3" placeholder="0.0123,0.0234,..."></textarea>
+    <p>Paste your 25 G25 values — commas, spaces, or line breaks are all fine:</p>
+    <textarea id="g25Input" rows="5" placeholder="0.0123,0.0234,... or 0.0123 0.0234 ..."></textarea>
     <br>
     <button onclick="runAnalysis()">Run Monte Carlo</button>
 
@@ -53,7 +53,7 @@
     <div id="threeWayResult"></div>
 
     <script>
-        // Load your reference populations from the data folder
+        // Load reference populations from the data folder
         let populations = [];
 
         fetch('data/g25_references_scaled.txt')
@@ -68,10 +68,8 @@
             })
             .catch(err => console.error("Error loading reference populations:", err));
 
-        // Monte Carlo Functions (your existing ones)
-        // Placeholder functions — replace with your full Monte Carlo functions
+        // Placeholder Monte Carlo functions — replace with your full functions
         function rankClosest(userCoords) {
-            // Returns top 10 closest single populations
             return populations
                 .map(p => {
                     let dist = 0;
@@ -82,8 +80,6 @@
         }
 
         function twoWayModel(userCoords) {
-            // Example: compute best 2-way mix (simplified)
-            // Replace with your full algorithm
             return populations.slice(0,5).map(p => ({
                 mix: [p.name, populations[(populations.indexOf(p)+1)%populations.length].name],
                 score: Math.random().toFixed(4)
@@ -91,7 +87,6 @@
         }
 
         function threeWayModel(userCoords) {
-            // Example: compute best 3-way mix (simplified)
             return populations.slice(0,5).map(p => ({
                 mix: [p.name, populations[(populations.indexOf(p)+1)%populations.length].name,
                       populations[(populations.indexOf(p)+2)%populations.length].name],
@@ -99,13 +94,16 @@
             }));
         }
 
-        // Function to run analysis
+        // Flexible run function: accepts commas, spaces, or line breaks
         function runAnalysis() {
             const input = document.getElementById("g25Input").value.trim();
-            const coords = input.split(",").map(Number);
+            const coords = input
+                .split(/[\s,]+/)           // splits by comma, space, or line break
+                .map(s => Number(s.trim())) // trims each
+                .filter(n => !isNaN(n));   // removes any invalid values
 
-            if (coords.length !== 25 || coords.some(isNaN)) {
-                alert("Please enter exactly 25 valid numbers, separated by commas.");
+            if (coords.length !== 25) {
+                alert("Please enter exactly 25 numbers.");
                 return;
             }
 
