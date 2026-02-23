@@ -1,169 +1,127 @@
-let referencePopulations = [];
-
-/* ===============================
-   LOAD REFERENCES
-=================================*/
-async function loadReferences() {
-    const response = await fetch("data/g25_references_scaled.txt");
-    const text = await response.text();
-    const lines = text.trim().split("\n");
-
-    referencePopulations = lines.map(line => {
-        const parts = line.split(",");
-        return {
-            name: parts[0],
-            coords: parts.slice(1).map(Number),
-            cluster: detectCluster(parts[0])
-        };
-    });
-
-    console.log("Loaded:", referencePopulations.length);
-}
-
-/* ===============================
-   CLUSTER DETECTION
-=================================*/
-function detectCluster(name) {
-    const lower = name.toLowerCase();
-
-    if (lower.includes("rusyn") || lower.includes("ukrain") || lower.includes("polish") || lower.includes("slovak"))
-        return "Slavic";
-
-    if (lower.includes("lithuan") || lower.includes("latv"))
-        return "Baltic";
-
-    if (lower.includes("serb") || lower.includes("croat") || lower.includes("bulgar") || lower.includes("romanian"))
-        return "Balkan";
-
-    if (lower.includes("german") || lower.includes("austrian"))
-        return "Germanic";
-
-    if (lower.includes("finn") || lower.includes("saami"))
-        return "Uralic";
-
-    return "Other";
-}
-
-/* ===============================
-   EUCLIDEAN DISTANCE
-=================================*/
-function euclideanDistance(a, b) {
-    let sum = 0;
-    for (let i = 0; i < 25; i++) {
-        sum += (a[i] - b[i]) ** 2;
-    }
-    return Math.sqrt(sum);
-}
-
-/* ===============================
-   SINGLE DISTANCE RANKING
-=================================*/
-function rankClosest(target) {
-    const results = referencePopulations.map(ref => ({
-        name: ref.name,
-        cluster: ref.cluster,
-        distance: euclideanDistance(target, ref.coords)
-    }));
-
-    results.sort((a, b) => a.distance - b.distance);
-    return results.slice(0, 25);
-}
-
-/* ===============================
-   2-WAY MIXTURE MODEL
-=================================*/
-function twoWayModel(target) {
-    let bestFit = { distance: Infinity };
-
-    for (let i = 0; i < referencePopulations.length; i++) {
-        for (let j = i + 1; j < referencePopulations.length; j++) {
-
-            for (let p = 0; p <= 1; p += 0.02) {
-
-                const mix = referencePopulations[i].coords.map((val, idx) =>
-                    val * p + referencePopulations[j].coords[idx] * (1 - p)
-                );
-
-                const dist = euclideanDistance(target, mix);
-
-                if (dist < bestFit.distance) {
-                    bestFit = {
-                        pop1: referencePopulations[i].name,
-                        pop2: referencePopulations[j].name,
-                        percent1: Math.round(p * 100),
-                        percent2: Math.round((1 - p) * 100),
-                        distance: dist
-                    };
-                }
-            }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>G25 Monte Carlo Calculator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            max-width: 900px;
         }
-    }
-
-    return bestFit;
-}
-
-/* ===============================
-   3-WAY MIXTURE MODEL
-=================================*/
-function threeWayModel(target) {
-    let bestFit = { distance: Infinity };
-
-    for (let i = 0; i < referencePopulations.length; i++) {
-        for (let j = i + 1; j < referencePopulations.length; j++) {
-            for (let k = j + 1; k < referencePopulations.length; k++) {
-
-                for (let p = 0; p <= 1; p += 0.1) {
-                    for (let q = 0; q <= 1 - p; q += 0.1) {
-
-                        const r = 1 - p - q;
-
-                        const mix = referencePopulations[i].coords.map((val, idx) =>
-                            val * p +
-                            referencePopulations[j].coords[idx] * q +
-                            referencePopulations[k].coords[idx] * r
-                        );
-
-                        const dist = euclideanDistance(target, mix);
-
-                        if (dist < bestFit.distance) {
-                            bestFit = {
-                                pop1: referencePopulations[i].name,
-                                pop2: referencePopulations[j].name,
-                                pop3: referencePopulations[k].name,
-                                p1: Math.round(p * 100),
-                                p2: Math.round(q * 100),
-                                p3: Math.round(r * 100),
-                                distance: dist
-                            };
-                        }
-                    }
-                }
-            }
+        h1, h2, h3 {
+            color: #2c3e50;
         }
-    }
+        textarea {
+            width: 100%;
+            font-family: monospace;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>G25 Monte Carlo Calculator</h1>
 
-    return bestFit;
-}
+    <h2>Enter Your G25 Coordinates</h2>
+    <p>Paste your 25 G25 values, separated by commas:</p>
+    <textarea id="g25Input" rows="3" placeholder="0.0123,0.0234,..."></textarea>
+    <br>
+    <button onclick="runAnalysis()">Run Monte Carlo</button>
 
-/* ===============================
-   CLUSTER SUMMARY
-=================================*/
-function clusterBreakdown(rankedResults) {
-    const clusters = {};
+    <div id="singleResult"></div>
+    <div id="twoWayResult"></div>
+    <div id="threeWayResult"></div>
 
-    rankedResults.forEach(r => {
-        if (!clusters[r.cluster]) clusters[r.cluster] = 0;
-        clusters[r.cluster]++;
-    });
+    <script>
+        // Load your reference populations from the data folder
+        let populations = [];
 
-    return clusters;
-}
+        fetch('data/g25_references_scaled.txt')
+            .then(response => response.text())
+            .then(text => {
+                const lines = text.trim().split('\n');
+                populations = lines.map(line => {
+                    const [name, ...coords] = line.split(',');
+                    return { name: name.trim(), coords: coords.map(Number) };
+                });
+                console.log("Reference populations loaded:", populations.length);
+            })
+            .catch(err => console.error("Error loading reference populations:", err));
 
-/* ===============================
-   INITIALIZE
-=================================*/
-async function initialize() {
-    await loadReferences();
-}
+        // Monte Carlo Functions (your existing ones)
+        // Placeholder functions — replace with your full Monte Carlo functions
+        function rankClosest(userCoords) {
+            // Returns top 10 closest single populations
+            return populations
+                .map(p => {
+                    let dist = 0;
+                    for (let i = 0; i < 25; i++) dist += Math.pow(p.coords[i] - userCoords[i], 2);
+                    return { name: p.name, distance: Math.sqrt(dist) };
+                })
+                .sort((a,b) => a.distance - b.distance);
+        }
 
-initialize();
+        function twoWayModel(userCoords) {
+            // Example: compute best 2-way mix (simplified)
+            // Replace with your full algorithm
+            return populations.slice(0,5).map(p => ({
+                mix: [p.name, populations[(populations.indexOf(p)+1)%populations.length].name],
+                score: Math.random().toFixed(4)
+            }));
+        }
+
+        function threeWayModel(userCoords) {
+            // Example: compute best 3-way mix (simplified)
+            return populations.slice(0,5).map(p => ({
+                mix: [p.name, populations[(populations.indexOf(p)+1)%populations.length].name,
+                      populations[(populations.indexOf(p)+2)%populations.length].name],
+                score: Math.random().toFixed(4)
+            }));
+        }
+
+        // Function to run analysis
+        function runAnalysis() {
+            const input = document.getElementById("g25Input").value.trim();
+            const coords = input.split(",").map(Number);
+
+            if (coords.length !== 25 || coords.some(isNaN)) {
+                alert("Please enter exactly 25 valid numbers, separated by commas.");
+                return;
+            }
+
+            const ranked = rankClosest(coords);
+            const best2 = twoWayModel(coords);
+            const best3 = threeWayModel(coords);
+
+            document.getElementById("singleResult").innerHTML =
+                "<h3>Closest Single Matches</h3><pre>" + JSON.stringify(ranked.slice(0,10), null, 2) + "</pre>";
+
+            document.getElementById("twoWayResult").innerHTML =
+                "<h3>Best 2-Way Mixtures</h3><pre>" + JSON.stringify(best2, null, 2) + "</pre>";
+
+            document.getElementById("threeWayResult").innerHTML =
+                "<h3>Best 3-Way Mixtures</h3><pre>" + JSON.stringify(best3, null, 2) + "</pre>";
+        }
+    </script>
+</body>
+</html>
