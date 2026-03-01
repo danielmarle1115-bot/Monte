@@ -1,36 +1,21 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>G25 Monte Carlo Calculator</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            max-width: 900px;
-        }
-        h1, h2, h3 {
-            color: #2c3e50;
-        }
-        textarea {
-            width: 100%;
-            font-family: monospace;
-            font-size: 14px;
-            margin-bottom: 10px;
-        }
-        button {
-            padding: 10px 20px;
-            font-size: 16px;
-            background-color: #3498db;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-bottom: 20px;
-        }
-        button:hover {
             background-color: #2980b9;
-        }
+        }import pandas as pd
+import numpy as np
+
+# Step 1: Parse Ancestry File
+def parse_ancestry(file_path):
+    df = pd.read_csv(file_path, sep='\t', comment='#')
+    return df
+
+# Step 2: Simplified Linear Regression for G25 (Pseudo-code)
+def k36_to_g25(k36_results):
+    # k36_results is a dict of { 'Population': Percentage }
+    g25_coords = []
+    # Coefficients is a pre-defined matrix for the 25 dimensions
+    for dim in range(1, 26):
+        coord = sum(k36_results[pop] * coefficients[dim][pop] for pop in populations)
+        g25_coords.append(coord)
+    return g25_coords
         pre {
             background-color: #f4f4f4;
             padding: 10px;
