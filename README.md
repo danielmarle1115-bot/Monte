@@ -1,27 +1,47 @@
-    
-    # Ensure populations matcimport streamlit as st
+    In a real scenario, this would use a 36x25 matrix of coefficients.
+    """import streamlit as st
 import pandas as pd
 import numpy as np
 
-# Title and Description
-st.title("🧬 Raw DNA to K36 to G25 Simulator")
-st.markdown("""
-This app simulates G25 coordinates from Eurogenes K36 results using linear regression.
-Paste your Eurogenes K36 results (components and percentages) below.
-""")
+st.set_page_config(page_title="DNA K36 to G25 Simulator", layout="wide")
 
-# 1. Input K36 Results
-st.subheader("1. Paste Eurogenes K36 Results")
-k36_input = st.text_area("Enter K36 Admixture Proportions (e.g., Amerindian 5.0, Arab 10.0...)", height=200)
+# 1. Load the weight matrix from your repository
+@st.cache_data
+def load_matrix():
+    # Replace with the path to your CSV file
+    return pd.read_csv("k36_to_g25_weights.csv", index_index=0)
 
-# 2. Simulation Logic (Mock Implementation)
-# A real implementation requires a pre-trained linear regression model (matrix)
-# that maps 36 k36 components to 25 G25 dimensions.
-def simulate_g25(k36_data):
-    """
-    Simulates G25 using a mock linear regression approach.
-    In a real scenario, this would use a 36x25 matrix of coefficients.
-    """
+try:
+    weights_df = load_matrix()
+    k36_labels = weights_df.index.tolist()
+    
+    st.title("🧬 Raw DNA to Simulated G25")
+    st.markdown("Convert your Eurogenes K36 percentages into G25 coordinates.")
+
+    # 2. User Input
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        st.subheader("Enter K36 Percentages")
+        user_values = {}
+        for label in k36_labels:
+            user_values[label] = st.number_input(f"{label} (%)", min_value=0.0, max_value=100.0, step=0.01)
+
+    # 3. Calculation
+    if st.button("Generate Coordinates"):
+        input_vector = np.array([user_values[l] for l in k36_labels])
+        # Perform matrix multiplication
+        simulated_g25 = np.dot(input_vector, weights_df.values) / 100
+        
+        with col2:
+            st.subheader("Your Simulated G25 Coordinates")
+            g25_str = ",".join([f"{val:.6f}" for val in simulated_g25])
+            st.code(f"Simulated_G25_scaled,{g25_str}", language="text")
+            
+            st.download_button("Download Coordinates", f"Simulated_G25_scaled,{g25_str}", "g25_coords.txt")
+
+except FileNotFoundError:
+    st.error("Matrix file 'k36_to_g25_weights.csv' not found. Please upload it to your repository.")
+
     # Parse K36 data
     try:
         lines = k36_data.strip().split('\n')
