@@ -1,57 +1,48 @@
-            background-color: #2980b9;
-        }import pandas as pd
-import numpy as np
-
-# Step 1: Parse Ancestry File
-def parse_ancestry(file_path):
-    df = pd.read_csv(file_path, sep='\t', comment='#')
-    return df
-
-# Step 2: Simplified Linear Regression for G25 (Pseudo-code)
-def k36_to_g25(k36_results):
-    # k36_results is a dict of { 'Population': Percentage }
-    g25_coords = []
-    # Coefficients is a pre-defined matrix for the 25 dimensions
-    for dim in range(1, 26):
-        coord = sum(k36_results[pop] * coefficients[dim][pop] for pop in populations)
-        g25_coords.append(coord)
-    return g25_coords
-        pre {
-            background-color: #f4f4f4;
-            padding: 10px;
-            border-radius: 5px;
-            overflow-x: auto;
-        }
-    </style>
-</head>
-<body>
-    <h1>G25 Monte Carlo Calculator</h1>
-
-    <h2>Enter Your G25 Coordinates</h2>
-    <p>Paste your 25 G25 values — commas, spaces, or line breaks are all fine:</p>
-    <textarea id="g25Input" rows="5" placeholder="0.0123,0.0234,... or 0.0123 0.0234 ..."></textarea>
-    <br>
-    <button onclick="runAnalysis()">Run Monte Carlo</button>
-
-    <div id="singleResult"></div>
-    <div id="twoWayResult"></div>
-    <div id="threeWayResult"></div>
-
-    <script>
-        // Load reference populations from the data folder
-        let populations = [];
-
-        fetch('data/g25_references_scaled.txt')
-            .then(response => response.text())
-            .then(text => {
-                const lines = text.trim().split('\n');
-                populations = lines.map(line => {
-                    const [name, ...coords] = line.split(',');
-                    return { name: name.trim(), coords: coords.map(Number) };
-                });
-                console.log("Reference populations loaded:", populations.length);
             })
-            .catch(err => console.error("Error loading reference populations:", err));
+            .catch(err => consimport pandas as pd
+import numpy as np
+import admix
+import sys
+
+# 1. SETUP: Load the Conversion Matrix
+# This matrix maps 36 K36 populations to 25 G25 dimensions
+def load_matrix(matrix_path):
+    return pd.read_csv(matrix_path, index_col=0)
+
+# 2. STEP ONE: Raw DNA to K36
+def run_k36_analysis(dna_file):
+    print("Extracting SNPs and calculating K36 Admixture...")
+    # The 'eurogenes_k36' model must be in your /db folder
+    model = admix.load_model("db/eurogenes_k36.json")
+    results = model.predict(dna_file)
+    return results # Returns a dictionary of 36 percentages
+
+# 3. STEP TWO: K36 to G25 (The Simulation)
+def project_to_g25(k36_scores, matrix):
+    print("Projecting K36 results to Simulated G25 coordinates...")
+    
+    # Ensure populations match between results and matrix
+    pops = matrix.index.tolist()
+    score_vector = np.array([k36_scores.get(p, 0) for p in pops])
+    
+    # Matrix Multiplication: (1x36) * (36x25) = (1x25)
+    g25_coords = np.dot(score_vector, matrix.values)
+    return g25_coords
+
+if __name__ == "__main__":
+    raw_file = "AncestryDNA_DM.txt" # Your uploaded file
+    
+    # Load transformation weights
+    vbn_matrix = load_matrix("matrix_k36_g25.csv")
+    
+    # Execute Pipeline
+    k36_data = run_k36_analysis(raw_file)
+    g25_result = project_to_g25(k36_data, vbn_matrix)
+    
+    # Format output for Vahaduo
+    output = "User_Simulated_Scaled," + ",".join(map(str, np.round(g25_result, 6)))
+    print("\n--- FINAL G25 COORDINATES ---")
+    print(output)ole.error("Error loading reference populations:", err));
 
         // Placeholder Monte Carlo functions — replace with your full functions
         function rankClosest(userCoords) {
